@@ -85,7 +85,9 @@ async function parseFile(
         currentQuestion.fullText += "\n" + line;
         // Nếu có dấu "=" thì đánh dấu đây là đáp án được chọn
         if (optionMatch[3] === "=") {
-          currentQuestion.chosenAnswer = optionMatch[1].trim();
+          currentQuestion.chosenAnswer = `${
+            optionMatch[1]
+          }. ${optionMatch[2].trim()}`;
         }
       } else {
         // Nếu dòng không khớp với option, thêm vào fullText
@@ -124,13 +126,16 @@ function compareAnswers(
       if (!suppressUnansweredLog) {
         console.log(chalk.cyan(`\n[U] Unanswered question:\n${q.fullText}\n`));
       }
-    } else if (q.chosenAnswer.toUpperCase() === correctAns.toUpperCase()) {
+    } else if (
+      q.chosenAnswer.charAt(0).toUpperCase() === correctAns.toUpperCase()
+    ) {
       correct++;
     } else {
       incorrect++;
       console.log(chalk.red(`\n[X] Incorrect question:`));
-      console.log(chalk.red(`- Your answers: ${q.chosenAnswer}`));
-      console.log(chalk.green(`- Correct answers: ${correctAns}`));
+      console.log(chalk.red(`${q.number}. ${q.text}`));
+      console.log(chalk.red(`- Your answers: \n` + `  + ${q.chosenAnswer}`));
+      console.log(chalk.green(`- Correct answers: \n` + `  + ${correctAns}`));
     }
   });
 
@@ -138,14 +143,14 @@ function compareAnswers(
   const answered = correct + incorrect;
   const correctPercentage = answered ? (correct / answered) * 100 : 0;
 
-  console.log(chalk.bold("\nTóm tắt kết quả:"));
+  console.log("\nSummary:");
   console.table({
-    "Tổng số câu": totalQuestions,
-    "Câu đã trả lời": answered,
-    Đúng: correct,
-    Sai: incorrect,
-    "Chưa trả lời": unanswered,
-    "Tỉ lệ đúng": `${correctPercentage.toFixed(1)}%`,
+    "Total questions": { Count: totalQuestions },
+    "Answered questions": { Count: answered },
+    Correct: { Count: correct },
+    Incorrect: { Count: incorrect },
+    "Correct percentage": { Count: `${correctPercentage.toFixed(1)}%` },
+    Unanswered: { Count: unanswered },
   });
 }
 
