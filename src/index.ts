@@ -122,6 +122,17 @@ function compareAnswers(
 
   questions.forEach((q) => {
     const correctAns = answerKey[q.number];
+
+    // Trích xuất tất cả các phương án trả lời trong câu hỏi
+    const options: { [key: string]: string } = {};
+    const optionLines = q.fullText.split("\n").slice(1); // Bỏ qua dòng đầu tiên (câu hỏi)
+    optionLines.forEach((line) => {
+      const match = line.match(/^([A-Z])\.\s*(.+?)(?:\s*;\[\*\].*)?$/);
+      if (match) {
+        options[match[1]] = `${match[1]}. ${match[2].trim()}`;
+      }
+    });
+
     if (!correctAns) {
       unanswered++;
       console.log(
@@ -148,8 +159,12 @@ function compareAnswers(
           console.log(
             chalk.red(`- Your answers: \n` + `  + ${q.chosenAnswer}`)
           );
+
+          // Hiển thị đáp án đúng với text đầy đủ
+          const fullCorrectAnswer =
+            options[correctAns] || `${correctAns}. (answer text not found)`;
           console.log(
-            chalk.green(`- Correct answers: \n` + `  + ${correctAns}`)
+            chalk.green(`- Correct answers: \n` + `  + ${fullCorrectAnswer}`)
           );
         }
       }
@@ -170,9 +185,7 @@ function compareAnswers(
           correct++;
         } else {
           incorrect++;
-          console.log(
-            chalk.red(`\n[X] Incorrect question (multiple answers):`)
-          );
+          console.log(chalk.red(`\n[X] Incorrect question:`));
           console.log(chalk.red(`${q.number}. ${q.text}`));
           console.log(
             chalk.red(
@@ -180,10 +193,15 @@ function compareAnswers(
                 q.chosenAnswers.map((a) => `  + ${a}`).join("\n")
             )
           );
+
+          // Hiển thị đáp án đúng với text đầy đủ
+          const fullCorrectAnswers = correctAns.map(
+            (ans) => options[ans] || `${ans}. (answer text not found)`
+          );
           console.log(
             chalk.green(
               `- Correct answers: \n` +
-                correctAns.map((a) => `  + ${a}`).join("\n")
+                fullCorrectAnswers.map((a) => `  + ${a}`).join("\n")
             )
           );
         }
