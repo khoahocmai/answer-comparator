@@ -7,11 +7,12 @@ interface Question {
   number: number;
   text: string; // Nội dung câu hỏi (không bao gồm phương án)
   chosenAnswer: string | null; // Phương án được chọn (được đánh dấu với [*]=)
+  chosenAnswers: string[]; // Mảng các phương án được chọn (cho câu hỏi nhiều đáp án)
   fullText: string; // Nội dung đầy đủ của câu hỏi (câu hỏi + các phương án)
 }
 
 interface AnswerKey {
-  [questionNumber: number]: string;
+  [questionNumber: number]: string | string[];
 }
 
 // Hàm đọc file (.docx hoặc .txt)
@@ -42,12 +43,18 @@ async function parseFile(
 
   // Phân tích answer key theo mẫu: {Q: 1; A: B}
   const answerKey: AnswerKey = {};
-  const keyRegex = /{Q:\s*(\d+);\s*A:\s*([A-Z])}/g;
+  const keyRegex = /{Q:\s*(\d+);\s*A:\s*([A-Z](?:,\s*[A-Z])*)}/g;
   let match;
   while ((match = keyRegex.exec(answerKeyPart)) !== null) {
     const num = parseInt(match[1], 10);
-    const ans = match[2].trim();
-    answerKey[num] = ans;
+    const answerPart = match[2].trim();
+
+    // Kiểm tra xem có nhiều đáp án không (A, B, C)
+    if (answerPart.includes(",")) {
+      answerKey[num] = answerPart.split(",").map((a) => a.trim());
+    } else {
+      answerKey[num] = answerPart;
+    }
   }
 
   // Phân tích câu hỏi và đáp án của thí sinh
@@ -75,6 +82,7 @@ async function parseFile(
         number: num,
         text: text,
         chosenAnswer: null,
+        chosenAnswers: [], // Khởi tạo mảng rỗng
         fullText: line,
       };
     } else if (currentQuestion) {
@@ -85,9 +93,9 @@ async function parseFile(
         currentQuestion.fullText += "\n" + line;
         // Nếu có dấu "=" thì đánh dấu đây là đáp án được chọn
         if (optionMatch[3] === "=") {
-          currentQuestion.chosenAnswer = `${
-            optionMatch[1]
-          }. ${optionMatch[2].trim()}`;
+          const answer = `${optionMatch[1]}. ${optionMatch[2].trim()}`;
+          currentQuestion.chosenAnswer = answer; // Giữ lại để tương thích với code cũ
+          currentQuestion.chosenAnswers.push(answer); // Thêm vào mảng các đáp án
         }
       } else {
         // Nếu dòng không khớp với option, thêm vào fullText
@@ -121,21 +129,65 @@ function compareAnswers(
           `\n[!] No corresponding answer found for question ${q.number}:\n${q.fullText}\n`
         )
       );
-    } else if (!q.chosenAnswer) {
+    } else if (!q.chosenAnswer && q.chosenAnswers.length === 0) {
       unanswered++;
       if (!suppressUnansweredLog) {
         console.log(chalk.cyan(`\n[U] Unanswered question:\n${q.fullText}\n`));
       }
-    } else if (
-      q.chosenAnswer.charAt(0).toUpperCase() === correctAns.toUpperCase()
-    ) {
-      correct++;
     } else {
-      incorrect++;
-      console.log(chalk.red(`\n[X] Incorrect question:`));
-      console.log(chalk.red(`${q.number}. ${q.text}`));
-      console.log(chalk.red(`- Your answers: \n` + `  + ${q.chosenAnswer}`));
-      console.log(chalk.green(`- Correct answers: \n` + `  + ${correctAns}`));
+      // Kiểm tra nếu là câu trả lời đơn
+      if (typeof correctAns === "string" && q.chosenAnswer) {
+        if (
+          q.chosenAnswer.charAt(0).toUpperCase() === correctAns.toUpperCase()
+        ) {
+          correct++;
+        } else {
+          incorrect++;
+          console.log(chalk.red(`\n[X] Incorrect question:`));
+          console.log(chalk.red(`${q.number}. ${q.text}`));
+          console.log(
+            chalk.red(`- Your answers: \n` + `  + ${q.chosenAnswer}`)
+          );
+          console.log(
+            chalk.green(`- Correct answers: \n` + `  + ${correctAns}`)
+          );
+        }
+      }
+      // Kiểm tra nếu là câu trả lời nhiều đáp án
+      else if (Array.isArray(correctAns) && q.chosenAnswers.length > 0) {
+        // Kiểm tra xem đã chọn đúng tất cả các đáp án hay chưa
+        const studentChoices = q.chosenAnswers.map((ans) =>
+          ans.charAt(0).toUpperCase()
+        );
+        const allCorrect = correctAns.every((ans) =>
+          studentChoices.includes(ans)
+        );
+        const noExtraChoices = studentChoices.every((choice) =>
+          correctAns.includes(choice)
+        );
+
+        if (allCorrect && noExtraChoices) {
+          correct++;
+        } else {
+          incorrect++;
+          console.log(
+            chalk.red(`\n[X] Incorrect question (multiple answers):`)
+          );
+          console.log(chalk.red(`${q.number}. ${q.text}`));
+          console.log(
+            chalk.red(
+              `- Your answers: \n` +
+                q.chosenAnswers.map((a) => `  + ${a}`).join("\n")
+            )
+          );
+          console.log(
+            chalk.green(
+              `- Correct answers: \n` +
+                correctAns.map((a) => `  + ${a}`).join("\n")
+            )
+          );
+        }
+      }
     }
   });
 
